@@ -21,7 +21,7 @@ def twodigits(n):
     else:
         return "0"+str(n)
 
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+SCOPES = ['https://www.googleapis.com/auth/drive']
 now = time.gmtime(time.time()-300)
 rfc = "{}-{}-{}T{}:{}:{}+00:00".format(twodigits(now[0]),twodigits(now[1]),twodigits(now[2]),twodigits(now[3]),twodigits(now[4]),twodigits(now[5]))
 
