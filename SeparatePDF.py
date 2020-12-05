@@ -1,30 +1,100 @@
-from PIL import Image
+from __future__ import print_function
+import pickle
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.http import MediaIoBaseDownload
+
+import time
+import os
+import io
+
 import textract
 from pdf2image import convert_from_path
-import os
 import PyPDF2
+from PIL import Image
 
+
+def twodigits(n):
+    if n>=10:
+        return n
+    else:
+        return "0"+str(n)
+
+SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+now = time.gmtime(time.time()-300)
+rfc = "{}-{}-{}T{}:{}:{}+00:00".format(twodigits(now[0]),twodigits(now[1]),twodigits(now[2]),twodigits(now[3]),twodigits(now[4]),twodigits(now[5]))
 
 rootdir = os.path.dirname(os.path.abspath(__file__))
+
+
+# All copied from google
+creds = None
+# The file token.pickle stores the user's access and refresh tokens, and is
+# created automatically when the authorization flow completes for the first
+# time.
+if os.path.exists('token.pickle'):
+    with open('token.pickle', 'rb') as token:
+        creds = pickle.load(token)
+# If there are no (valid) credentials available, let the user log in.
+if not creds or not creds.valid:
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            'credentials.json', SCOPES)
+        creds = flow.run_local_server(port=0)
+    # Save the credentials for the next run
+    with open('token.pickle', 'wb') as token:
+        pickle.dump(creds, token)
+
+service = build('drive', 'v3', credentials=creds)
+
+
+# Call the Drive v3 API
+results = service.files().list(q = "modifiedTime > '{}' and mimeType = 'application/pdf'".format(rfc),
+    pageSize=1, fields="nextPageToken, files(id, name)").execute()
+items = results.get('files', [])
+
+if not items:
+    print('No files found')
+    exit()
+
+name = items[0]['name'][:-4]
+pdf = os.path.join(rootdir,"1A",name[:name.index(' ')],name)
+
+print(items[0]['name'])
+# Downloads the pdf
+file_id = items[0]['id']
+request = service.files().get_media(fileId=file_id)
+fh = io.FileIO("./1A/{}/{}.pdf".format(name[:name.index(' ')],name),'wb')
+downloader = MediaIoBaseDownload(fh, request)
+done = False
+while done is False:
+    status, done = downloader.next_chunk()
+    print("Download %d%%." % int(status.progress() * 100))
 
 # Removes the previous pdfs of individual questions
 for f in os.listdir(os.path.join(rootdir,"Submit")):
     os.remove(os.path.join(rootdir,"Submit",f))
 
 
+
 # Finds the file path in the submissions folder
-for subdir, dirs,  files in os.walk(rootdir):
-    for file in files:
-        pdf = os.path.join(subdir,file)
-        if pdf.rindex('\\') == len(rootdir) and pdf[-3:] == "pdf":
-            name = pdf[pdf.rindex('\\')+1:]
-            newDir = os.path.join(rootdir,"1A",name[:name.index(' ')],name)
-            break
-    break
+# Replaced because since I am downloading the file to a specific path, I already have the path
+# Kept in case I want to revert later
+# for subdir, dirs,  files in os.walk(rootdir):
+#     for file in files:
+#         pdf = os.path.join(subdir,file)
+#         if pdf.rindex('\\') == len(rootdir) and pdf[-3:] == "pdf":
+#             name = pdf[pdf.rindex('\\')+1:]
+#             newDir = os.path.join(rootdir,"1A",name[:name.index(' ')],name)
+#             break
+#     break
 
 
 # Opens the pdf to read
-pdfFileObj = open(pdf,'rb')
+pdfFileObj = open(pdf+".pdf",'rb')
 pdfReader = PyPDF2.PdfFileReader(pdfFileObj)
 num_pages = pdfReader.numPages
 # Initializes variable for output
@@ -61,6 +131,4 @@ with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
     output.write(out_f)
 
 pdfFileObj.close()
-
-# Moves the file to where it should be
-os.rename(pdf,newDir)
+print("PDFs ready for submission")
