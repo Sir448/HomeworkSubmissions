@@ -1,57 +1,42 @@
 from PIL import Image
 import textract
-# import sys
 from pdf2image import convert_from_path
 import os
 import PyPDF2
 
 
-rootdir = 'D:\_UWHomeworkSubmissions'
+rootdir = os.path.dirname(os.path.abspath(__file__))
 
-for subdir, dirs, files in os.walk(rootdir):
+# Removes the previous pdfs of individual questions
+for f in os.listdir(os.path.join(rootdir,"Submit")):
+    os.remove(os.path.join(rootdir,"Submit",f))
+
+
+# Finds the file path in the submissions folder
+for subdir, dirs,  files in os.walk(rootdir):
     for file in files:
-        try:
-            os.path.join(subdir, file)[26:].index('\\')
-        except:
-            if os.path.join(subdir, file)[-3:] == "pdf":
-                pdf = os.path.join(subdir, file)
-                # print(str(os.path.join(subdir, file))[26:-4])
-                break
+        pdf = os.path.join(subdir,file)
+        if pdf.rindex('\\') == len(rootdir) and pdf[-3:] == "pdf":
+            name = pdf[pdf.rindex('\\')+1:]
+            newDir = os.path.join(rootdir,"1A",name[:name.index(' ')],name)
+            break
+    break
 
 
-# pdf = "./1A/Test{}.pdf".format(input("PDF number?"))
-# pdf = os.path.join(subdir, file)
-
-# # pages = convert_from_path(pdf,dpi=500,poppler_path=r'C:\Program Files\poppler-0.68.0_x86\poppler-0.68.0\bin')
-
-# # image_counter = 1
-
-# # for page in pages:
-# #     page.save("./Submit/page_{}.jpg".format(image_counter),'JPEG')
-# #     image_counter+=1
-
-# # filelimit = image_counter
-upperLeft = 100
-lowerRight = 150
-
-# # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-
-# # for i in range(1,filelimit):
-# #     img = Image.open("./Submit/page_{}.jpg".format(i))
-# #     img = img.crop((400,400,x,x))
-# #     img.save("./Submit/page_{}.jpg".format(i))
-# #     text = str(((pytesseract.image_to_string(Image.open("./Submit/page_{}.jpg".format(i)),config='--psm 4'))))
-# #     print(text)
-
+# Opens the pdf to read
 pdfFileObj = open(pdf,'rb')
-question = 1
-startingPage = 0
 pdfReader = PyPDF2.PdfFileReader(pdfFileObj)
 num_pages = pdfReader.numPages
+# Initializes variable for output
 output = PyPDF2.PdfFileWriter()
+
+question = 1
+
 for i in range(num_pages):
+    # Reads the text on the page
     page = pdfReader.getPage(i)
     text = page.extractText()
+    # Creates a second variable with only the number of the question on the page
     text2 = ""
     for i in text:
         if ord(i) >= 48 and ord(i) <= 57:
@@ -59,79 +44,23 @@ for i in range(num_pages):
         elif i == '.':
             break
     # print("text2",text2)
-    if len(text2) == 0:
+
+    if len(text2) == 0: #If there is no number on the page, add to the current question
         output.addPage(page)
-        # print("test")
         continue
-    if text2 != 1:
-        with open("./Submit/{} Question#{}.pdf".format(pdf[26:-4],question),"wb") as out_f:
+    if text2 != 1: #If it's not the first question, that means we just finished another question so we have to save that pdf and start a new one
+        with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
             output.write(out_f)
         question = int(text2)
         # print("question:",question)
         output = PyPDF2.PdfFileWriter()
-    output.addPage(page)
+    output.addPage(page) #Add page to the new pdf
 
-with open("./Submit/{} Question#{}.pdf".format(pdf[26:-4],question),"wb") as out_f:
+# Saves pdf for last question
+with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
     output.write(out_f)
 
+pdfFileObj.close()
 
-
-
-
-
-# while True:
-#     output = PyPDF2.PdfFileWriter()
-#     for i in range(startingPage,num_pages):
-#         page = pdfReader.getPage(i)
-#         text = page.extractText()
-#         for i in text:
-#             if ord(i) < 48 or ord(i) > 57:
-#                 text = text[1:]
-#             else:
-#                 break
-#         for i in range(len(text)):
-#             if text[i] == '.':
-#                 text[:i]
-#                 break
-#         if len(text) == 0:
-#             output.addPage(page)
-#             continue
-#         startingPage = i
-#         break
-#     else:
-#         with open("./Submit/test #{}.pdf".format(question),"wb") as out_f:
-#             output.write(out_f)
-#         break
-#     with open("./Submit/test #{}.pdf".format(question),"wb") as out_f:
-#         output.write(out_f)
-#     question+=1
-
-
-
-    
-        
-        # page.mediaBox.lowerRight = (lowerRight,page.cropBox.getUpperRight()[1] - lowerRight)
-    # with open("./Submit/test.pdf","wb") as out_f:
-    #     output.write(out_f)
-
-# pages = convert_from_path("./Submit/test.pdf",dpi=500,poppler_path=r'C:\Program Files\poppler-0.68.0_x86\poppler-0.68.0\bin')
-# pages[0].save("./Submit/test.jpg")
-
-# img = Image.open(r'./Submit/test.jpg')
-# img = img.convert('RGB')
-# img.save(r'./Submit/test.pdf')
-
-# pdfFile = PyPDF2.PdfFileReader(open("./Submit/test.pdf",'rb'))
-# page = pdfFile.getPage(0)
-# # img = Image.open("./Submit/test.pdf")
-# text = page.extractText()
-# for i in text:
-#     if i == '!' or i == ' ':
-#         text = text[1:]
-# print(text)
-
-
-
-
-        # if text == "" or int(text) == question:
-        #     Question.addPage()
+# Moves the file to where it should be
+os.rename(pdf,newDir)
