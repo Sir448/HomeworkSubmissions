@@ -22,7 +22,7 @@ def twodigits(n):
         return "0"+str(n)
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
-now = time.gmtime(time.time()-300)
+now = time.gmtime(time.time()-3000)
 rfc = "{}-{}-{}T{}:{}:{}+00:00".format(twodigits(now[0]),twodigits(now[1]),twodigits(now[2]),twodigits(now[3]),twodigits(now[4]),twodigits(now[5]))
 
 rootdir = os.path.dirname(os.path.abspath(__file__))
@@ -100,6 +100,7 @@ num_pages = pdfReader.numPages
 # Initializes variable for output
 output = PyPDF2.PdfFileWriter()
 
+newPage = True
 question = 1
 
 for i in range(num_pages):
@@ -108,23 +109,19 @@ for i in range(num_pages):
     text = page.extractText()
     # Creates a second variable with only the number of the question on the page
     text2 = ""
-    for i in text:
-        if ord(i) >= 48 and ord(i) <= 57:
-            text2 += i
-        elif i == '.':
+    for j in text:
+        if ord(j) >= 48 and ord(j) <= 57:
+            text2 += j
+        elif j == '.':
             break
-    # print("text2",text2)
-
-    if len(text2) == 0: #If there is no number on the page, add to the current question
-        output.addPage(page)
-        continue
-    if text2 != 1: #If it's not the first question, that means we just finished another question so we have to save that pdf and start a new one
-        with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
-            output.write(out_f)
+    if len(text2) != 0: #New question
+        if i != 0: #If it's not the first question, that means we just finished another question so we have to save that pdf and start a new one
+            with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
+                output.write(out_f)
+            output = PyPDF2.PdfFileWriter()
         question = int(text2)
-        # print("question:",question)
-        output = PyPDF2.PdfFileWriter()
-    output.addPage(page) #Add page to the new pdf
+
+    output.addPage(page) #Add page to the pdf
 
 # Saves pdf for last question
 with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
