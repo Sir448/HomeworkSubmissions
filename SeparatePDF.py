@@ -14,6 +14,8 @@ from pdf2image import convert_from_path
 import PyPDF2
 from PIL import Image
 
+term = "1B"
+timeLimit = 30 #In minutes
 
 def twodigits(n):
     if n>=10:
@@ -22,7 +24,7 @@ def twodigits(n):
         return "0"+str(n)
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
-now = time.gmtime(time.time()-3000)
+now = time.gmtime(time.time()-timeLimit*60)
 rfc = "{}-{}-{}T{}:{}:{}+00:00".format(twodigits(now[0]),twodigits(now[1]),twodigits(now[2]),twodigits(now[3]),twodigits(now[4]),twodigits(now[5]))
 
 rootdir = os.path.dirname(os.path.abspath(__file__))
@@ -61,13 +63,22 @@ if not items:
     exit()
 
 name = items[0]['name'][:-4]
-pdf = os.path.join(rootdir,"1A",name[:name.index(' ')],name)
+pdf = os.path.join(rootdir,term,name[:name.index(' ')],name)
 
 print(items[0]['name'])
 # Downloads the pdf
 file_id = items[0]['id']
 request = service.files().get_media(fileId=file_id)
-fh = io.FileIO("./1A/{}/{}.pdf".format(name[:name.index(' ')],name),'wb')
+fh = None
+try:
+    fh = io.FileIO("./{}/{}/{}.pdf".format(term,name[:name.index(' ')],name),'wb')
+except:
+    if (os.path.exists(os.path.join(rootdir,term))):
+        os.mkdir(os.path.join(rootdir,term,name[:name.index(' ')]))
+    else:
+        os.mkdir(os.path.join(rootdir,term))
+        os.mkdir(os.path.join(rootdir,term,name[:name.index(' ')]))
+    fh = io.FileIO("./{}/{}/{}.pdf".format(term,name[:name.index(' ')],name),'wb')
 downloader = MediaIoBaseDownload(fh, request)
 done = False
 while done is False:
@@ -101,7 +112,7 @@ num_pages = pdfReader.numPages
 output = PyPDF2.PdfFileWriter()
 
 newPage = True
-question = 1
+question = -1
 
 for i in range(num_pages):
     # Reads the text on the page
@@ -114,8 +125,17 @@ for i in range(num_pages):
             text2 += j
         elif j == '.':
             break
+        elif len(text2) != 0:
+            text2 = ""
+            break
+    else:
+        text2 = ""
     if len(text2) != 0: #New question
-        if i != 0: #If it's not the first question, that means we just finished another question so we have to save that pdf and start a new one
+        if i != 0 and question == -1: #There are pages that aren't questions yet, the forewords
+            with open("./Submit/{} Foreword.pdf".format(name),"wb") as out_f:
+                output.write(out_f)
+            output = PyPDF2.PdfFileWriter()
+        elif i != 0: #If it's not the first question, that means we just finished another question so we have to save that pdf and start a new one
             with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
                 output.write(out_f)
             output = PyPDF2.PdfFileWriter()
