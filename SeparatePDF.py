@@ -14,6 +14,9 @@ from pdf2image import convert_from_path
 import PyPDF2
 from PIL import Image
 
+import subprocess
+
+
 term = "1B"
 timeLimit = 30 #In minutes
 
@@ -29,7 +32,6 @@ rfc = "{}-{}-{}T{}:{}:{}+00:00".format(twodigits(now[0]),twodigits(now[1]),twodi
 
 rootdir = os.path.dirname(os.path.abspath(__file__))
 
-
 # All copied from google
 creds = None
 # The file token.pickle stores the user's access and refresh tokens, and is
@@ -38,6 +40,8 @@ creds = None
 if os.path.exists('token.pickle'):
     with open('token.pickle', 'rb') as token:
         creds = pickle.load(token)
+
+
 # If there are no (valid) credentials available, let the user log in.
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
@@ -51,7 +55,6 @@ if not creds or not creds.valid:
         pickle.dump(creds, token)
 
 service = build('drive', 'v3', credentials=creds)
-
 
 # Call the Drive v3 API
 results = service.files().list(q = "modifiedTime > '{}' and mimeType = 'application/pdf'".format(rfc),
@@ -149,3 +152,5 @@ with open("./Submit/{} Question#{}.pdf".format(name,question),"wb") as out_f:
 
 pdfFileObj.close()
 print("PDFs ready for submission")
+
+subprocess.Popen('explorer "D:\_UWHomeworkSubmissions\Submit"')
