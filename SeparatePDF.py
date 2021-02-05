@@ -16,6 +16,7 @@ from PIL import Image
 
 import subprocess
 
+print("Separate PDF running")
 
 term = "1B"
 timeLimit = 30 #In minutes
@@ -32,61 +33,90 @@ rfc = "{}-{}-{}T{}:{}:{}+00:00".format(twodigits(now[0]),twodigits(now[1]),twodi
 
 rootdir = os.path.dirname(os.path.abspath(__file__))
 
-# All copied from google
-creds = None
-# The file token.pickle stores the user's access and refresh tokens, and is
-# created automatically when the authorization flow completes for the first
-# time.
-if os.path.exists('token.pickle'):
-    with open('token.pickle', 'rb') as token:
-        creds = pickle.load(token)
+if not os.path.exists("Manual Download"):
+    os.mkdir(os.path.join(rootdir,"Manual Download"))
+    print("Manual Download directory created")
+manual = len(os.listdir(os.path.join(rootdir,"Manual Download"))) != 0
+
+if not manual:
+    # All copied from google
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+        print("Identified token")
 
 
-# If there are no (valid) credentials available, let the user log in.
-if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    else:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            'credentials.json', SCOPES)
-        creds = flow.run_local_server(port=0)
-    # Save the credentials for the next run
-    with open('token.pickle', 'wb') as token:
-        pickle.dump(creds, token)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        print("Refreshing credentials")
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
 
-service = build('drive', 'v3', credentials=creds)
 
-# Call the Drive v3 API
-results = service.files().list(q = "modifiedTime > '{}' and mimeType = 'application/pdf'".format(rfc),
-    pageSize=1, fields="nextPageToken, files(id, name)").execute()
-items = results.get('files', [])
+    service = build('drive', 'v3', credentials=creds)
 
-if not items:
-    print('No files found')
-    exit()
+    # Call the Drive v3 API
+    results = service.files().list(q = "modifiedTime > '{}' and mimeType = 'application/pdf'".format(rfc),
+        pageSize=1, fields="nextPageToken, files(id, name)").execute()
+    items = results.get('files', [])
 
-name = items[0]['name'][:-4]
-pdf = os.path.join(rootdir,term,name[:name.index(' ')],name)
+    if not items:
+        print('No files found')
+        exit()
 
-print(items[0]['name'])
+    name = items[0]['name'][:-4]
+
+else:
+    name = os.listdir(os.path.join(rootdir,"Manual Download"))[0][:-4]
+    print("Manual Download Detected")
+
+course = name[:name.index(' ')]
+pdf = os.path.join(rootdir,term,course,name)
+
+print(name+".pdf")
+    
+# Makes directory if it doesn't exist
+if(not os.path.exists(term)):
+    os.mkdir(os.path.join(rootdir,term))
+    print(term, "directory created")
+if(not os.path.exists("{}/{}".format(term,course))):
+    os.mkdir(os.path.join(rootdir,term,course))
+    print(course, "directory created")
+if(not os.path.exists("Submit")):
+    os.mkdir(os.path.join(rootdir,"Submit"))
+    print("Submit directory created")
+
+
 # Downloads the pdf
-file_id = items[0]['id']
-request = service.files().get_media(fileId=file_id)
-fh = None
-try:
-    fh = io.FileIO("./{}/{}/{}.pdf".format(term,name[:name.index(' ')],name),'wb')
-except:
-    if (os.path.exists(os.path.join(rootdir,term))):
-        os.mkdir(os.path.join(rootdir,term,name[:name.index(' ')]))
+if not manual:
+    file_id = items[0]['id']
+    request = service.files().get_media(fileId=file_id)
+    fh = io.FileIO("./{}/{}/{}.pdf".format(term,course,name),'wb')
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while done is False:
+        status, done = downloader.next_chunk()
+        print("Download %d%%." % int(status.progress() * 100))
+else:
+    # Moves file if downloaded manually
+    if os.path.exists("{}/{}/{}.pdf".format(term,course,name)):
+        os.remove(os.path.join(rootdir,term,course,name+".pdf"))
+        os.rename(os.path.join(rootdir,"Manual Download",name+".pdf"),os.path.join(rootdir,term,course,name+".pdf"))
+        print("File replaced")
     else:
-        os.mkdir(os.path.join(rootdir,term))
-        os.mkdir(os.path.join(rootdir,term,name[:name.index(' ')]))
-    fh = io.FileIO("./{}/{}/{}.pdf".format(term,name[:name.index(' ')],name),'wb')
-downloader = MediaIoBaseDownload(fh, request)
-done = False
-while done is False:
-    status, done = downloader.next_chunk()
-    print("Download %d%%." % int(status.progress() * 100))
+        print("File moved")
+        os.rename(os.path.join(rootdir,"Manual Download",name+".pdf"),os.path.join(rootdir,term,course,name+".pdf"))
 
 # Removes the previous pdfs of individual questions
 for f in os.listdir(os.path.join(rootdir,"Submit")):
@@ -102,7 +132,7 @@ for f in os.listdir(os.path.join(rootdir,"Submit")):
 #         pdf = os.path.join(subdir,file)
 #         if pdf.rindex('\\') == len(rootdir) and pdf[-3:] == "pdf":
 #             name = pdf[pdf.rindex('\\')+1:]
-#             newDir = os.path.join(rootdir,"1A",name[:name.index(' ')],name)
+#             newDir = os.path.join(rootdir,"1A",course,name)
 #             break
 #     break
 
